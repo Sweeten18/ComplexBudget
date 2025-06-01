@@ -1,110 +1,86 @@
-# ComplexBudget
-#budget program using python
 import json
 import os
-from datetime import datetime
-import matplotlib.pyplot as plt
 
 DATA_FILE = "budget_data.json"
 
-class BudgetManager:
-    def __init__(self):
-        self.data = {
-            "income": [],
-            "expenses": [],
-            "budgets": {},
-            "savings_goal": 0.0
-        }
-        self.load_data()
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'r') as f:
+            return json.load(f)
+    return {}
 
-    def load_data(self):
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, 'r') as f:
-                self.data = json.load(f)
+def save_data(data):
+    with open(DATA_FILE, 'w') as f:
+        json.dump(data, f, indent=4)
 
-    def save_data(self):
-        with open(DATA_FILE, 'w') as f:
-            json.dump(self.data, f, indent=4)
+def get_float_input(prompt):
+    while True:
+        try:
+            return float(input(prompt))
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
-    def add_income(self, amount, source):
-        entry = {
-            "amount": amount,
-            "source": source,
-            "date": datetime.now().isoformat()
-        }
-        self.data['income'].append(entry)
-        self.save_data()
+def get_category_input(title):
+    print(f"\nEnter {title} (type 'done' when finished):")
+    entries = {}
+    while True:
+        category = input("Category: ")
+        if category.lower() == 'done':
+            break
+        amount = get_float_input(f"Amount for {category}: ")
+        entries[category] = amount
+    return entries
 
-    def add_expense(self, amount, category):
-        entry = {
-            "amount": amount,
-            "category": category,
-            "date": datetime.now().isoformat()
-        }
-        self.data['expenses'].append(entry)
-        self.save_data()
+def calculate_summary(data):
+    income = data.get("income", 0)
+    expenses = data.get("expenses", {})
+    budgets = data.get("budgets", {})
+    goal = data.get("savings_goal", 0)
 
-    def set_budget(self, category, amount):
-        self.data['budgets'][category] = amount
-        self.save_data()
+    total_expenses = sum(expenses.values())
+    savings = income - total_expenses
+    goal_met = savings >= goal
 
-    def set_savings_goal(self, amount):
-        self.data['savings_goal'] = amount
-        self.save_data()
+    return {
+        "income": income,
+        "total_expenses": total_expenses,
+        "savings": savings,
+        "goal": goal,
+        "goal_met": goal_met,
+        "expenses": expenses,
+        "budgets": budgets
+    }
 
-    def get_summary(self):
-        income_total = sum(item['amount'] for item in self.data['income'])
-        expense_total = sum(item['amount'] for item in self.data['expenses'])
-        savings = income_total - expense_total
-        return {
-            "Total Income": income_total,
-            "Total Expenses": expense_total,
-            "Savings": savings,
-            "Goal Met": savings >= self.data['savings_goal']
-        }
+def display_summary(summary):
+    print("\n--- Budget Summary ---")
+    print(f"Income: ${summary['income']:.2f}")
+    print(f"Total Expenses: ${summary['total_expenses']:.2f}")
+    print(f"Savings: ${summary['savings']:.2f}")
+    print(f"Savings Goal: ${summary['goal']:.2f}")
+    print("Goal Met: ✅" if summary['goal_met'] else "Goal Met: ❌")
 
-    def category_expense_summary(self):
-        summary = {}
-        for item in self.data['expenses']:
-            category = item['category']
-            summary[category] = summary.get(category, 0) + item['amount']
-        return summary
+    print("\n--- Budget vs. Actual Expenses ---")
+    for category in set(summary["budgets"]) | set(summary["expenses"]):
+        budgeted = summary["budgets"].get(category, 0)
+        spent = summary["expenses"].get(category, 0)
+        print(f"{category}: Budgeted ${budgeted:.2f} | Spent ${spent:.2f}")
 
-    def visualize_expenses(self):
-        summary = self.category_expense_summary()
-        categories = list(summary.keys())
-        amounts = list(summary.values())
+def main():
+    print("=== Monthly Budget Manager ===")
+    data = {}
 
-        plt.figure(figsize=(10, 6))
-        plt.pie(amounts, labels=categories, autopct='%1.1f%%', startangle=140)
-        plt.title('Expenses by Category')
-        plt.axis('equal')
-        plt.show()
+    data["income"] = get_float_input("Enter your monthly income: $")
+    data["expenses"] = get_category_input("monthly expenses")
+    data["budgets"] = get_category_input("budget per category")
+    data["savings_goal"] = get_float_input("Enter your monthly savings goal: $")
 
-    def print_summary(self):
-        summary = self.get_summary()
-        print("\n--- Monthly Summary ---")
-        for key, value in summary.items():
-            print(f"{key}: ${value:.2f}")
+    save_data(data)
 
-        print("\n--- Budget vs. Actual ---")
-        actuals = self.category_expense_summary()
-        for category, budget in self.data['budgets'].items():
-            actual = actuals.get(category, 0)
-            print(f"{category} -> Budgeted: ${budget:.2f}, Actual: ${actual:.2f}")
+    summary = calculate_summary(data)
+    display_summary(summary)
 
-
-# Example usage:
 if __name__ == "__main__":
-    bm = BudgetManager()
-
-    # Simulate some actions
-    bm.add_income(3000, "Salary")
-    bm.add_expense(500, "Rent")
-    bm.add_expense(150, "Groceries")
-    bm.add_expense(60, "Utilities")
-    bm.set_budget("Rent", 600)
-    bm.set_budget("Groceries", 200)
+    main()
     bm.set_budget("Utilities", 100)
     bm.set_savings_goal(500)
 
